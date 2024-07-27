@@ -53,6 +53,9 @@ class GUIConstants:
     FIXED_WIDTH_FONT_NAME = "Inconsolata-Regular"
     FIXED_WIDTH_EMPHASIS_FONT_NAME = "Inconsolata-SemiBold"
 
+    FIXED_WIDTH_FONT_NAME_JP = "PlemolJP-Regular-S"
+    FIXED_WIDTH_EMPHASIS_FONT_NAME_JP = "PlemolJP-SemiBold-S"
+
     LABEL_FONT_SIZE = BODY_FONT_MIN_SIZE
     LABEL_FONT_COLOR = "#777777"
 

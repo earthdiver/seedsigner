@@ -79,7 +79,10 @@ class Seed:
 
 
     def set_passphrase(self, passphrase: str, regenerate_seed: bool = True):
+        import re
         if passphrase:
+            passphrase = re.sub(r"\\(?!u)", r"\\\\", passphrase)
+            passphrase = bytes(passphrase, encoding="raw_unicode_escape").decode("unicode_escape")
             self._passphrase = unicodedata.normalize("NFKD", passphrase)
         else:
             # Passphrase must always have a string value, even if it's just the empty

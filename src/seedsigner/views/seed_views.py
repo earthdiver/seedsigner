@@ -323,7 +323,7 @@ class SeedAddPassphraseView(View):
 
 
     def run(self):
-        ret = self.run_screen(seed_screens.SeedAddPassphraseScreen, passphrase=self.seed.passphrase)
+        ret = self.run_screen(seed_screens.SeedAddPassphraseScreen, passphrase=self.seed.passphrase_display)
 
         if ret == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
@@ -366,7 +366,7 @@ class SeedReviewPassphraseView(View):
             seed_screens.SeedReviewPassphraseScreen,
             fingerprint_without=fingerprint_without,
             fingerprint_with=fingerprint_with,
-            passphrase=self.seed.passphrase,
+            passphrase=self.seed.passphrase_display,
             button_data=button_data,
             show_back_button=False,
         )
