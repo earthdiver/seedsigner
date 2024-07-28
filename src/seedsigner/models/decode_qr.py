@@ -38,11 +38,12 @@ class DecodeQR:
     """
         Used to process images or string data from animated qr codes.
     """
-    def __init__(self, wordlist_language_code: str = SettingsConstants.WORDLIST_LANGUAGE__ENGLISH):
+    def __init__(self, wordlist_language_code: str = SettingsConstants.WORDLIST_LANGUAGE__ENGLISH, is_passphrase: bool = False):
         self.wordlist_language_code = wordlist_language_code
         self.complete = False
         self.qr_type = None
         self.decoder = None
+        self.is_passphrase = is_passphrase
 
 
     def add_image(self, image):
@@ -57,7 +58,10 @@ class DecodeQR:
         if data == None:
             return DecodeQRStatus.FALSE
 
-        qr_type = DecodeQR.detect_segment_type(data, wordlist_language_code=self.wordlist_language_code)
+        if self.is_passphrase:
+            qr_type = QRType.PASSPHRASE
+        else:
+            qr_type = DecodeQR.detect_segment_type(data, wordlist_language_code=self.wordlist_language_code)
 
         if self.qr_type == None:
             self.qr_type = qr_type
@@ -94,6 +98,9 @@ class DecodeQR:
                 
             elif self.qr_type == QRType.WALLET__CONFIGFILE:
                 self.decoder = MultiSigConfigFileQRDecoder()
+
+            elif self.qr_type == QRType.PASSPHRASE:
+                self.decoder = PassphraseQrDecoder() # BIP39 passphrase
 
         elif self.qr_type != qr_type:
             raise Exception('QR Fragment Unexpected Type Change')
@@ -191,6 +198,11 @@ class DecodeQR:
     def get_address_type(self):
         if self.is_address:
             return self.decoder.get_address_type()
+
+
+    def get_passphrase(self):
+        if self.is_passphrase:
+            return self.decoder.get_passphrase()
 
 
     def get_qr_data(self) -> dict:
@@ -378,7 +390,7 @@ class DecodeQR:
                 return QRType.BITCOIN_ADDRESS
 
             # message signing
-            elif DecodeQR.is_sign_message(s):
+            elif DecodeQR.is_signmessage(s):
                 return QRType.SIGN_MESSAGE
 
             # config data
@@ -503,7 +515,7 @@ class DecodeQR:
 
 
     @staticmethod
-    def is_sign_message(s):
+    def is_signmessage(s):
         return type(s) == str and s.startswith("signmessage")
 
 
@@ -1091,3 +1103,20 @@ class MultiSigConfigFileQRDecoder(GenericWalletQrDecoder):
     def add(self, segment, qr_type=QRType.WALLET__CONFIGFILE):
         descriptor = DecodeQR.multisig_setup_file_to_descriptor(segment)
         return super().add(descriptor,qr_type=QRType.WALLET__CONFIGFILE)
+
+
+class PassphraseQrDecoder(BaseSingleFrameQrDecoder):
+    def __init__(self):
+        super().__init__()
+        self.passphrase = None
+
+
+    def add(self, segment, qr_type=QRType.PASSPHRASE):
+        self.passphrase = segment
+        self.complete = True
+        self.collected_segments = 1
+        return DecodeQRStatus.COMPLETE
+
+
+    def get_passphrase(self):
+        return self.passphrase

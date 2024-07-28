@@ -288,7 +288,8 @@ class SeedMnemonicInvalidView(View):
 
 class SeedFinalizeView(View):
     FINALIZE = "Done"
-    PASSPHRASE = "BIP-39 Passphrase"
+    TYPE_PASSPHRASE = "Type BIP-39 Passphrase"
+    SCAN_PASSPHRASE = "Scan BIP-39 Passphrase"
 
     def __init__(self):
         super().__init__()
@@ -297,9 +298,11 @@ class SeedFinalizeView(View):
 
 
     def run(self):
+        from seedsigner.views.scan_views import ScanPassphraseView
         button_data = [self.FINALIZE]
         if self.settings.get_value(SettingsConstants.SETTING__PASSPHRASE) != SettingsConstants.OPTION__DISABLED:
-            button_data.append(self.PASSPHRASE)
+            button_data.append(self.TYPE_PASSPHRASE)
+            button_data.append(self.SCAN_PASSPHRASE)
 
         selected_menu_num = self.run_screen(
             seed_screens.SeedFinalizeScreen,
@@ -311,8 +314,11 @@ class SeedFinalizeView(View):
             seed_num = self.controller.storage.finalize_pending_seed()
             return Destination(SeedOptionsView, view_args={"seed_num": seed_num}, clear_history=True)
 
-        elif button_data[selected_menu_num] == self.PASSPHRASE:
+        elif button_data[selected_menu_num] == self.TYPE_PASSPHRASE:
             return Destination(SeedAddPassphraseView)
+
+        elif button_data[selected_menu_num] == self.SCAN_PASSPHRASE:
+            return Destination(ScanPassphraseView)
 
 
 
