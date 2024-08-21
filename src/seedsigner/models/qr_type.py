@@ -23,6 +23,8 @@ class QRType:
 
     SIGN_MESSAGE = "sign_message"
 
+    PASSPHRASE = "passphrase"
+
     WALLET__SPECTER = "wallet__specter"
     WALLET__UR = "wallet__ur"
     WALLET__CONFIGFILE = "wallet__configfile"

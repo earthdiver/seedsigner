@@ -153,6 +153,12 @@ class ScanView(View):
                     )
                 )
             
+            elif self.decoder.is_passphrase:
+                from seedsigner.views.seed_views import SeedReviewPassphraseView
+                passphrase = self.decoder.get_passphrase()
+                self.controller.storage.get_pending_seed().set_passphrase(passphrase)
+                return Destination(SeedReviewPassphraseView)
+
             else:
                 return Destination(NotYetImplementedView)
 
@@ -209,3 +215,13 @@ class ScanAddressView(ScanView):
     @property
     def is_valid_qr_type(self):
         return self.decoder.is_address
+
+
+
+class ScanPassphraseView(ScanView):
+    instructions_text = "Scan passphrase"
+
+
+    def __init__(self):
+        super(ScanView, self).__init__()
+        self.decoder: DecodeQR = DecodeQR(is_passphrase=True)
