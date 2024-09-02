@@ -356,7 +356,7 @@ class SeedAddPassphraseView(View):
             if len(self.seed.passphrase) > 0:
                 return Destination(SeedAddPassphraseExitDialogView)
             else:
-                return Destination(BackStackView)
+                return Destination(SeedFinalizeView)
             
         elif len(self.seed.passphrase) > 0:
             return Destination(SeedReviewPassphraseView)
