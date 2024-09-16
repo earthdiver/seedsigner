@@ -1159,7 +1159,7 @@ class SeedBIP85SelectChildIndexView(View):
             )
 
         return Destination(
-            SeedWordsWarningView,
+            SeedWordsBackupTestPromptView,
             view_args=dict(
                 seed_num=self.seed_num,
                 bip85_data=dict(child_index=int(ret), num_words=self.num_words),
@@ -1206,8 +1206,14 @@ class SeedWordsBackupTestPromptView(View):
 
     def run(self):
         VERIFY = "Verify"
+        REVIEW = "Review"
         SKIP = "Skip"
-        button_data = [VERIFY, SKIP]
+        button_data = [VERIFY, REVIEW, SKIP]
+
+        FINALIZE = ("Finalize child")
+        if self.seed_num is not None and self.bip85_data:
+            button_data.append(FINALIZE)
+
         selected_menu_num = seed_screens.SeedWordsBackupTestPromptScreen(
             button_data=button_data,
         ).display()
@@ -1218,11 +1224,25 @@ class SeedWordsBackupTestPromptView(View):
                 view_args=dict(seed_num=self.seed_num, bip85_data=self.bip85_data),
             )
 
+        elif button_data[selected_menu_num] == REVIEW:
+            return Destination(
+                SeedWordsWarningView,
+                view_args=dict(seed_num=self.seed_num, bip85_data=self.bip85_data),
+            )
+
         elif button_data[selected_menu_num] == SKIP:
             if self.seed_num is not None:
                 return Destination(SeedOptionsView, view_args=dict(seed_num=self.seed_num))
             else:
                 return Destination(SeedFinalizeView)
+
+        elif button_data[selected_menu_num] == FINALIZE:
+            parent = self.controller.storage.seeds[self.seed_num]
+            child = Seed(parent.get_bip85_child_mnemonic(
+                self.bip85_data["child_index"], self.bip85_data["num_words"]
+                ).split())
+            self.controller.storage.set_pending_seed(child)
+            return Destination(SeedFinalizeView)
 
 
 
@@ -1276,7 +1296,7 @@ class SeedWordsBackupTestView(View):
                 # Successfully confirmed the full mnemonic!
                 return Destination(
                     SeedWordsBackupTestSuccessView,
-                    view_args=dict(seed_num=self.seed_num),
+                    view_args=dict(seed_num=self.seed_num, bip85_data=self.bip85_data),
                 )
             else:
                 # Continue testing the remaining words
@@ -1343,9 +1363,11 @@ class SeedWordsBackupTestMistakeView(View):
 
 
 class SeedWordsBackupTestSuccessView(View):
-    def __init__(self, seed_num: int):
+    def __init__(self, seed_num: int, bip85_data: dict = None):
         super().__init__()
         self.seed_num = seed_num
+        self.bip85_data = bip85_data
+
 
     def run(self):
         LargeIconStatusScreen(
@@ -1355,6 +1377,15 @@ class SeedWordsBackupTestSuccessView(View):
             text="All mnemonic backup words were successfully verified!",
             button_data=["OK"]
         ).display()
+
+        # if BIP-85 child is backed-up, setup to finalize it.
+        if self.seed_num is not None and self.bip85_data:
+            parent = self.controller.storage.seeds[self.seed_num]
+            child = Seed(parent.get_bip85_child_mnemonic(
+                self.bip85_data["child_index"], self.bip85_data["num_words"]
+                ).split())
+            self.controller.storage.set_pending_seed(child)
+            self.seed_num = None
 
         if self.seed_num is not None:
             return Destination(SeedOptionsView, view_args=dict(seed_num=self.seed_num), clear_history=True)
