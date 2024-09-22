@@ -310,13 +310,16 @@ class SeedFinalizeView(View):
         super().__init__()
         self.seed = self.controller.storage.get_pending_seed()
         self.fingerprint = self.seed.get_fingerprint(network=self.settings.get_value(SettingsConstants.SETTING__NETWORK))
+        self.TYPE_PASSPHRASE = "Type " + self.seed.passphrase_label
+        self.SCAN_PASSPHRASE = "Scan " + self.seed.passphrase_label
 
 
     def run(self):
+        from seedsigner.views.scan_views import ScanPassphraseView
         button_data = [self.FINALIZE]
-        passphrase_button = self.seed.passphrase_label
         if self.settings.get_value(SettingsConstants.SETTING__PASSPHRASE) != SettingsConstants.OPTION__DISABLED:
-            button_data.append(passphrase_button)
+            button_data.append(self.TYPE_PASSPHRASE)
+            button_data.append(self.SCAN_PASSPHRASE)
 
         selected_menu_num = self.run_screen(
             seed_screens.SeedFinalizeScreen,
@@ -328,8 +331,11 @@ class SeedFinalizeView(View):
             seed_num = self.controller.storage.finalize_pending_seed()
             return Destination(SeedOptionsView, view_args={"seed_num": seed_num}, clear_history=True)
 
-        elif button_data[selected_menu_num] == passphrase_button:
+        elif button_data[selected_menu_num] == self.TYPE_PASSPHRASE:
             return Destination(SeedAddPassphraseView)
+
+        elif button_data[selected_menu_num] == self.SCAN_PASSPHRASE:
+            return Destination(ScanPassphraseView)
 
 
 
@@ -341,7 +347,7 @@ class SeedAddPassphraseView(View):
 
     def run(self):
         passphrase_title=self.seed.passphrase_label
-        ret_dict = self.run_screen(seed_screens.SeedAddPassphraseScreen, passphrase=self.seed.passphrase, title=passphrase_title)
+        ret_dict = self.run_screen(seed_screens.SeedAddPassphraseScreen, passphrase=self.seed.passphrase_display, title=passphrase_title)
 
         # The new passphrase will be the return value; it might be empty.
         self.seed.set_passphrase(ret_dict["passphrase"])
@@ -350,7 +356,7 @@ class SeedAddPassphraseView(View):
             if len(self.seed.passphrase) > 0:
                 return Destination(SeedAddPassphraseExitDialogView)
             else:
-                return Destination(BackStackView)
+                return Destination(SeedFinalizeView)
             
         elif len(self.seed.passphrase) > 0:
             return Destination(SeedReviewPassphraseView)
@@ -419,7 +425,7 @@ class SeedReviewPassphraseView(View):
             seed_screens.SeedReviewPassphraseScreen,
             fingerprint_without=fingerprint_without,
             fingerprint_with=fingerprint_with,
-            passphrase=self.seed.passphrase,
+            passphrase=self.seed.passphrase_display,
             button_data=button_data,
             show_back_button=False,
         )
