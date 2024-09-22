@@ -1034,16 +1034,16 @@ class SeedReviewPassphraseScreen(ButtonListScreen):
             screen_y = self.buttons[0].screen_y - GUIConstants.COMPONENT_PADDING - int(GUIConstants.BODY_FONT_SIZE*2.5)
         ))
 
-        if self.passphrase != self.passphrase.strip() or "  " in self.passphrase:
+        if " " in self.passphrase:
             self.passphrase = self.passphrase.replace(" ", "\u2589")
         available_height = self.components[-1].screen_y - self.top_nav.height + GUIConstants.COMPONENT_PADDING
         max_font_size = GUIConstants.TOP_NAV_TITLE_FONT_SIZE + 8
         min_font_size = GUIConstants.TOP_NAV_TITLE_FONT_SIZE - 4
         font_size = max_font_size
         max_lines = 3
-        passphrase = [self.passphrase]
+        max_chars_per_line = -1
         found_solution = False
-        for font_size in range(max_font_size, min_font_size, -2):
+        for font_size in range(max_font_size, min_font_size-1, -2):
             if found_solution:
                 break
             font = Fonts.get_font(font_name=GUIConstants.FIXED_WIDTH_FONT_NAME_JP, size=font_size)
@@ -1052,8 +1052,9 @@ class SeedReviewPassphraseScreen(ButtonListScreen):
             for num_lines in range(1, max_lines+1):
                 # Break the passphrase into n lines
                 chars_per_line = math.ceil(textwidth(self.passphrase) / num_lines)
-                if num_lines > 1:
-                    chars_per_line += 1
+                if font_size <= min_font_size + 1 and num_lines == max_lines:
+                    max_chars_per_line = math.floor((self.canvas_width - 2*GUIConstants.EDGE_PADDING) / char_width)
+                    chars_per_line = min(chars_per_line, max_chars_per_line)
                 passphrase = []
                 k = 0
                 for i in range(0, num_lines):
@@ -1061,8 +1062,14 @@ class SeedReviewPassphraseScreen(ButtonListScreen):
                     for j in range(k, len(self.passphrase)):
                         c = self.passphrase[j]
                         if textwidth(buffer + c) > chars_per_line:
-                            passphrase.append(buffer)
-                            k = j
+                            if (textwidth(self.passphrase[j:]) <= chars_per_line * (num_lines-1 - i) or
+                                chars_per_line == max_chars_per_line):
+                                passphrase.append(buffer)
+                                k = j
+                            else:
+                                chars_per_line += 1
+                                passphrase.append(buffer + c)
+                                k = j + 1
                             break
                         elif textwidth(buffer + c) == chars_per_line:
                             passphrase.append(buffer + c)
@@ -1070,10 +1077,27 @@ class SeedReviewPassphraseScreen(ButtonListScreen):
                             break
                         elif j == len(self.passphrase) - 1:
                             passphrase.append(buffer + c)
+                            break
                         buffer += c
-                
+
+                # Truncate the displayed passphrase to fit within the screen
+                if sum(len(x) for x in passphrase) != len(self.passphrase):
+                    buffer = ""
+                    for j in range(0, len(passphrase[-1])):
+                        c = passphrase[-1][j]
+                        if textwidth(buffer + c) <= chars_per_line - textwidth("\u2026"):
+                            buffer += c
+                        else:
+                            break
+                    buffer += "\u2026"
+                    passphrase[-1] = buffer
+
+                for i in range(0, num_lines):
+                    while textwidth(passphrase[i]) < chars_per_line:
+                        passphrase[i] += " "
+
                 # See if it fits in this configuration
-                if char_width * max(textwidth(x) for x in passphrase) <= self.canvas_width - 2*GUIConstants.EDGE_PADDING:
+                if chars_per_line * char_width <= self.canvas_width - 2*GUIConstants.EDGE_PADDING:
                     # Width is good...
                     if num_lines * char_height <= available_height:
                         # And the height is good!
@@ -1097,7 +1121,7 @@ def textwidth(text: str):
     import unicodedata
     count = 0
     for c in text:
-        if unicodedata.east_asian_width(c) in 'FWA':
+        if unicodedata.east_asian_width(c) in 'FW':
             count += 2
         else:
             count += 1

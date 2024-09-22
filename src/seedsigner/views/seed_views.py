@@ -347,7 +347,7 @@ class SeedAddPassphraseView(View):
 
     def run(self):
         passphrase_title=self.seed.passphrase_label
-        ret_dict = self.run_screen(seed_screens.SeedAddPassphraseScreen, passphrase=self.seed.passphrase, title=passphrase_title)
+        ret_dict = self.run_screen(seed_screens.SeedAddPassphraseScreen, passphrase=self.seed.passphrase_display, title=passphrase_title)
 
         # The new passphrase will be the return value; it might be empty.
         self.seed.set_passphrase(ret_dict["passphrase"])
