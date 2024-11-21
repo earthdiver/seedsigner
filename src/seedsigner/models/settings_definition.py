@@ -167,7 +167,10 @@ class SettingsConstants:
     SETTING__DIRE_WARNINGS = "dire_warnings"
     SETTING__QR_BRIGHTNESS_TIPS = "qr_brightness_tips"
     SETTING__PARTNER_LOGOS = "partner_logos"
-
+    SETTING__ENCRYPTED_QR = "encrypted_qr"
+    SETTING__ENCRYPTION_MODE = "version"
+    SETTING__ENCRYPTION_ITER = "pbkdf2_iterations"
+    
     SETTING__DEBUG = "debug"
 
     # Hidden settings
@@ -210,6 +213,15 @@ class SettingsConstants:
     LABEL__BIP39_PASSPHRASE = "BIP-39 Passphrase"
     LABEL__CUSTOM_EXTENSION = "Custom Extension"   # Terminology used by Electrum seeds
 
+    # Encryption constants
+    ENCRYPTION_MODE_ECB   = "AES-ECB"
+    ENCRYPTION_MODE_CBC   = "AES-CBC"
+    ENCRYPTION_MODE       = ENCRYPTION_MODE_ECB
+    ENCRYPTION_ITERATIONS = 10
+    ALL_ENCRYPTION_MODES = [
+        ENCRYPTION_MODE_ECB,
+        ENCRYPTION_MODE_CBC,
+    ]
 
 
 @dataclass
@@ -463,6 +475,27 @@ class SettingsDefinition:
                       display_name="CompactSeedQR",
                       visibility=SettingsConstants.VISIBILITY__ADVANCED,
                       default_value=SettingsConstants.OPTION__ENABLED),
+
+        SettingsEntry(category=SettingsConstants.CATEGORY__FEATURES,
+                      attr_name=SettingsConstants.SETTING__ENCRYPTED_QR,
+                      display_name="EncryptedQR",
+                      visibility=SettingsConstants.VISIBILITY__ADVANCED,
+                      default_value=SettingsConstants.OPTION__ENABLED),
+
+        SettingsEntry(category=SettingsConstants.CATEGORY__FEATURES,
+                      attr_name=SettingsConstants.SETTING__ENCRYPTION_MODE,
+                      display_name="Encryption Mode",
+                      type=SettingsConstants.TYPE__SELECT_1,
+                      visibility=SettingsConstants.VISIBILITY__ADVANCED,
+                      selection_options=SettingsConstants.ALL_ENCRYPTION_MODES,
+                      default_value=SettingsConstants.ENCRYPTION_MODE),
+
+        SettingsEntry(category=SettingsConstants.CATEGORY__FEATURES,
+                      attr_name=SettingsConstants.SETTING__ENCRYPTION_ITER,
+                      display_name="Encryption Iter.(PBKDF2)",
+                      type=SettingsConstants.TYPE__FREE_ENTRY,
+                      visibility=SettingsConstants.VISIBILITY__ADVANCED,
+                      default_value=SettingsConstants.ENCRYPTION_ITERATIONS),
 
         SettingsEntry(category=SettingsConstants.CATEGORY__FEATURES,
                       attr_name=SettingsConstants.SETTING__BIP85_CHILD_SEEDS,

@@ -96,12 +96,19 @@ class QR:
         else:
             border_str = "3"
 
-        cmd = f"""qrencode -m {border_str} -s 3 -l L --foreground=000000 --background={background_color} -t PNG -o "/tmp/qrcode.png" "{str(data)}" """
+        if type(data) is str:
+            cmd = f"""qrencode -m {border_str} -s 3 -l L --foreground=000000 --background={background_color} -t PNG -o "/tmp/qrcode.png" "{data}" """
+        else:
+            cmd = f"""qrencode -m {border_str} -s 3 -l L --foreground=000000 --background={background_color} -t PNG -8 -r "/tmp/data.bin" -o "/tmp/qrcode.png" """
+            with open("/tmp/data.bin", "wb") as f:
+                f.write(data)
+
         rv = subprocess.call(cmd, shell=True)
 
         # if qrencode fails, fall back to only encoder
         if rv != 0:
             return self.qrimage(data,width,height,border)
         img = Image.open("/tmp/qrcode.png").resize((width,height), Image.NEAREST).convert("RGBA")
+        rv = subprocess.call("rm -f /tmp/data.bin /tmp/qrcode.png", shell=True)
 
         return img

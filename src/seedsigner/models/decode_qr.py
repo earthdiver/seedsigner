@@ -31,6 +31,7 @@ class DecodeQRStatus(IntEnum):
     COMPLETE = 3
     FALSE = 4
     INVALID = 5
+    WRONG_KEY = 6
 
 
 
@@ -38,13 +39,14 @@ class DecodeQR:
     """
         Used to process images or string data from animated qr codes.
     """
-    def __init__(self, wordlist_language_code: str = SettingsConstants.WORDLIST_LANGUAGE__ENGLISH, is_passphrase: bool = False):
+    def __init__(self, wordlist_language_code: str = SettingsConstants.WORDLIST_LANGUAGE__ENGLISH, is_passphrase: bool = False,
+                                                                                                   is_encryptionkey: bool = False):
         self.wordlist_language_code = wordlist_language_code
         self.complete = False
         self.qr_type = None
         self.decoder = None
         self.is_passphrase = is_passphrase
-
+        self.is_encryptionkey = is_encryptionkey
 
     def add_image(self, image):
         data = DecodeQR.extract_qr_data(image, is_binary=True)
@@ -60,6 +62,8 @@ class DecodeQR:
 
         if self.is_passphrase:
             qr_type = QRType.PASSPHRASE
+        elif self.is_encryptionkey:
+            qr_type = QRType.ENCRYPTION_KEY
         else:
             qr_type = DecodeQR.detect_segment_type(data, wordlist_language_code=self.wordlist_language_code)
 
@@ -102,6 +106,12 @@ class DecodeQR:
             elif self.qr_type == QRType.PASSPHRASE:
                 self.decoder = PassphraseQrDecoder() # BIP39 passphrase
 
+            elif self.qr_type == QRType.SEED__ENCRYPTEDQR:
+                self.decoder = EncryptedQrDecoder()
+
+            elif self.qr_type == QRType.ENCRYPTION_KEY:
+                self.decoder = EncryptionKeyQrDecoder()
+
         elif self.qr_type != qr_type:
             raise Exception('QR Fragment Unexpected Type Change')
         
@@ -110,10 +120,12 @@ class DecodeQR:
             return DecodeQRStatus.INVALID
 
         # Process the binary formats first
-        if self.qr_type == QRType.SEED__COMPACTSEEDQR:
-            rt = self.decoder.add(data, QRType.SEED__COMPACTSEEDQR)
+        if self.qr_type in [QRType.SEED__COMPACTSEEDQR, QRType.SEED__ENCRYPTEDQR]:
+            rt = self.decoder.add(data, self.qr_type)
             if rt == DecodeQRStatus.COMPLETE:
                 self.complete = True
+            elif rt == DecodeQRStatus.WRONG_KEY:
+                self.wrong_key = True
             return rt
 
         # Convert to string data
@@ -206,6 +218,16 @@ class DecodeQR:
     def get_passphrase(self):
         if self.is_passphrase:
             return self.decoder.get_passphrase()
+
+
+    def get_encryption_key(self):
+        if self.is_encryptionkey:
+            return self.decoder.get_encryption_key()
+
+
+    def get_public_data(self):
+        if self.is_encrypted_seedqr:
+            return self.decoder.get_public_data()
 
 
     def get_qr_data(self) -> dict:
@@ -318,6 +340,11 @@ class DecodeQR:
     @property
     def is_settings(self):
         return self.qr_type == QRType.SETTINGS
+
+
+    @property
+    def is_encrypted_seedqr(self) -> bool:
+        return self.qr_type == QRType.SEED__ENCRYPTEDQR
 
 
     @staticmethod
@@ -438,6 +465,18 @@ class DecodeQR:
             except Exception as e:
                 # Couldn't extract byte data; assume it's not a byte format
                 pass
+
+        else:
+            from seedsigner.models.encryption import EncryptedQRCode
+            encrypted_qr = EncryptedQRCode()
+            data_bytes = s.encode("latin-1") if isinstance(s, str) else s
+            public_data = encrypted_qr.public_data(data_bytes)
+            if public_data:
+                from seedsigner.models.encryptedqr import EncryptedQR
+                encryptedqr = EncryptedQR(encrypted_qr=encrypted_qr, public_data=public_data)
+                from seedsigner.controller import Controller
+                Controller.get_instance().storage2.set_encryptedqr(encryptedqr)
+                return QRType.SEED__ENCRYPTEDQR
 
         return QRType.INVALID
 
@@ -1105,6 +1144,7 @@ class MultiSigConfigFileQRDecoder(GenericWalletQrDecoder):
         return super().add(descriptor,qr_type=QRType.WALLET__CONFIGFILE)
 
 
+
 class PassphraseQrDecoder(BaseSingleFrameQrDecoder):
     def __init__(self):
         super().__init__()
@@ -1112,11 +1152,106 @@ class PassphraseQrDecoder(BaseSingleFrameQrDecoder):
 
 
     def add(self, segment, qr_type=QRType.PASSPHRASE):
-        self.passphrase = segment
-        self.complete = True
-        self.collected_segments = 1
-        return DecodeQRStatus.COMPLETE
+        if qr_type == QRType.PASSPHRASE:
+            try:
+                self.passphrase = segment
+                self.complete = True
+                self.collected_segments = 1
+                return DecodeQRStatus.COMPLETE
+            except Exception as e:
+                logger.exception(repr(e))
+
+        return DecodeQRStatus.INVALID
 
 
     def get_passphrase(self):
         return self.passphrase
+
+
+
+class EncryptionKeyQrDecoder(BaseSingleFrameQrDecoder):
+    """
+        Decodes single frame representing an encyption key.
+    """
+    def __init__(self):
+        super().__init__()
+        self.encryption_key = None
+
+
+    def add(self, segment, qr_type=QRType.ENCRYPTION_KEY):
+        if qr_type == QRType.ENCRYPTION_KEY:
+            try:
+                self.encryption_key = segment
+                from seedsigner.controller import Controller
+                encryptedqr = Controller.get_instance().storage2.encryptedqr
+                if encryptedqr:
+                    encryptedqr.set_encryption_key(self.encryption_key)
+                self.complete = True
+                self.collected_segments = 1
+                return DecodeQRStatus.COMPLETE
+            except Exception as e:
+                logger.exception(repr(e))
+
+        return DecodeQRStatus.INVALID
+
+
+    def get_encryption_key(self):
+        return self.encryption_key
+
+
+
+class EncryptedQrDecoder(BaseSingleFrameQrDecoder):
+    """
+        Decodes single frame representing an encypted seed.
+    """
+    def __init__(self):
+        super().__init__()
+        self.public_data = None
+        self.seed_phrase = []
+
+
+    def add(self, segment, qr_type=QRType.SEED__ENCRYPTEDQR, encryption_key=None):
+        if qr_type == QRType.SEED__ENCRYPTEDQR:
+            try:
+                from seedsigner.controller import Controller
+                controller = Controller.get_instance()
+                encryptedqr = controller.storage2.encryptedqr
+                if encryptedqr:
+                    encrypted_qr = encryptedqr.encrypted_qr
+                    self.public_data = encryptedqr.public_data
+                else:
+                    from seedsigner.models.encryption import EncryptedQRCode
+                    encrypted_qr = EncryptedQRCode()
+                    data_bytes = segment.encode("latin-1") if isinstance(segment, str) else segment
+                    self.public_data = encrypted_qr.public_data(data_bytes)
+                    if not self.public_data:
+                        raise Exception("Encrypted QR code is invalid.")
+                    from seedsigner.models.encryptedqr import EncryptedQR
+                    encryptedqr = EncryptedQR(encrypted_qr=encrypted_qr, public_data=self.public_data)
+                    controller.storage2.set_encryptedqr(encryptedqr)
+
+                if encryption_key:
+                    word_bytes = encrypted_qr.decrypt(encryption_key)
+                    if not word_bytes:
+                        return DecodeQRStatus.WRONG_KEY
+                    self.seed_phrase = bip39.mnemonic_from_bytes(word_bytes).split()
+                else:
+                    self.seed_phrase = []
+
+                self.complete = True
+                self.collected_segments = 1
+                return DecodeQRStatus.COMPLETE
+
+            except Exception as e:
+                logger.exception(repr(e))
+
+        return DecodeQRStatus.INVALID
+
+
+    def get_public_data(self):
+        return self.public_data
+
+
+    def get_seed_phrase(self):
+        return self.seed_phrase[:]
+
