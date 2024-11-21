@@ -622,6 +622,7 @@ class SeedOptionsView(View):
 class SeedBackupView(View):
     VIEW_WORDS = "View Seed Words"
     EXPORT_SEEDQR = "Export as SeedQR"
+    EXPORT_PLAINTEXTQR = "Export as Plaintext QR"
 
     def __init__(self, seed_num):
         super().__init__()
@@ -635,6 +636,9 @@ class SeedBackupView(View):
         if self.seed.seedqr_supported:
             button_data.append(self.EXPORT_SEEDQR)
 
+        if self.settings.get_value(SettingsConstants.SETTING__PLAINTEXTQR) == SettingsConstants.OPTION__ENABLED:
+            button_data.append(self.EXPORT_PLAINTEXTQR)
+
         selected_menu_num = self.run_screen(
             ButtonListScreen,
             title="Backup Seed",
@@ -647,6 +651,9 @@ class SeedBackupView(View):
 
         elif button_data[selected_menu_num] == self.VIEW_WORDS:
             return Destination(SeedWordsWarningView, view_args={"seed_num": self.seed_num})
+
+        elif button_data[selected_menu_num] == self.EXPORT_PLAINTEXTQR:
+            return Destination(SeedExportPlaintextQRView, view_args={"seed_num": self.seed_num})
 
         elif button_data[selected_menu_num] == self.EXPORT_SEEDQR:
             return Destination(SeedTranscribeSeedQRFormatView, view_args={"seed_num": self.seed_num})
@@ -2422,3 +2429,26 @@ class SeedSignMessageSignedMessageQRView(View):
 
         # Exiting/Canceling the QR display screen always returns Home
         return Destination(MainMenuView, skip_current_view=True)
+
+
+
+class SeedExportPlaintextQRView(View):
+    def __init__(self, seed_num: int):
+        super().__init__()
+        self.seed_num = seed_num
+        self.seed = self.controller.get_seed(seed_num)
+
+
+    def run(self):
+        encoder_args = dict(data=self.seed.mnemonic_str)
+        e = GenericStaticQrEncoder(**encoder_args)
+
+        self.run_screen(
+            QRDisplayScreen,
+            qr_encoder=e
+        )
+
+        return Destination(
+            SeedOptionsView,
+            view_args={"seed_num": self.seed_num}
+        )
