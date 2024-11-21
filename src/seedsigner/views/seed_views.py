@@ -2,12 +2,16 @@ import logging
 import embit
 import random
 import time
+import hashlib
+import os
 
 from binascii import hexlify
 from embit import bip39
 from embit.descriptor import Descriptor
 from embit.networks import NETWORKS
 from typing import List
+from PIL import Image
+from PIL.ImageOps import autocontrast
 
 from seedsigner.controller import Controller
 from seedsigner.gui.components import FontAwesomeIconConstants, SeedSignerIconConstants
@@ -1385,7 +1389,10 @@ class SeedTranscribeSeedQRFormatView(View):
             num_modules_standard = 29
             num_modules_compact = 25
 
-        if self.settings.get_value(SettingsConstants.SETTING__COMPACT_SEEDQR) != SettingsConstants.OPTION__ENABLED:
+        ENCRYPTED = "Encrypted"
+
+        if (self.settings.get_value(SettingsConstants.SETTING__COMPACT_SEEDQR) != SettingsConstants.OPTION__ENABLED and
+            self.settings.get_value(SettingsConstants.SETTING__ENCRYPTED_QR) != SettingsConstants.OPTION__ENABLED):
             # Only configured for standard SeedQR
             return Destination(
                 SeedTranscribeSeedQRWarningView,
@@ -1397,10 +1404,17 @@ class SeedTranscribeSeedQRFormatView(View):
                 skip_current_view=True,
             )
 
-        button_data = [STANDARD, COMPACT]
+        button_data = [STANDARD]
+
+        if self.settings.get_value(SettingsConstants.SETTING__COMPACT_SEEDQR) == SettingsConstants.OPTION__ENABLED:
+            button_data.append(COMPACT)
+        if self.settings.get_value(SettingsConstants.SETTING__ENCRYPTED_QR) == SettingsConstants.OPTION__ENABLED:
+            button_data.append(ENCRYPTED)
 
         selected_menu_num = seed_screens.SeedTranscribeSeedQRFormatScreen(
             title="SeedQR Format",
+            is_compactqr = (self.settings.get_value(SettingsConstants.SETTING__COMPACT_SEEDQR) == SettingsConstants.OPTION__ENABLED),
+            is_encryptedqr = (self.settings.get_value(SettingsConstants.SETTING__ENCRYPTED_QR) == SettingsConstants.OPTION__ENABLED),
             button_data=button_data,
         ).display()
 
@@ -1410,9 +1424,12 @@ class SeedTranscribeSeedQRFormatView(View):
         if button_data[selected_menu_num] == STANDARD:
             seedqr_format = QRType.SEED__SEEDQR
             num_modules = num_modules_standard
-        else:
+        elif button_data[selected_menu_num] == COMPACT:
             seedqr_format = QRType.SEED__COMPACTSEEDQR
             num_modules = num_modules_compact
+        else:
+            seedqr_format = QRType.SEED__ENCRYPTEDQR
+            num_modules = 0  # dummy
         
         return Destination(
             SeedTranscribeSeedQRWarningView,
@@ -1472,31 +1489,214 @@ class SeedTranscribeSeedQRWholeQRView(View):
     
 
     def run(self):
-        encoder_args = dict(mnemonic=self.seed.mnemonic_list,
-                            wordlist_language_code=self.settings.get_value(SettingsConstants.SETTING__WORDLIST_LANGUAGE))
-        if self.seedqr_format == QRType.SEED__SEEDQR:
-            e = SeedQrEncoder(**encoder_args)
-        elif self.seedqr_format == QRType.SEED__COMPACTSEEDQR:
-            e = CompactSeedQrEncoder(**encoder_args)
+        if self.seedqr_format == QRType.SEED__ENCRYPTEDQR:
 
-        data = e.next_part()
+            from seedsigner.gui.screens.scan_screens import ScanTypeEncryptionKeyScreen, ScanReviewEncryptionKeyScreen
+            from seedsigner.gui.screens.seed_screens import SeedTypeMnemonicIDScreen, SeedReviewMnemonicIDScreen
 
-        ret = seed_screens.SeedTranscribeSeedQRWholeQRScreen(
-            qr_data=data,
-            num_modules=self.num_modules,
-        ).display()
+            TYPE = "Type encryption key"
+            SCAN = "Scan encryption key"
+            button_data = [TYPE, SCAN]
 
-        if ret == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-        
-        else:
-            return Destination(
-                SeedTranscribeSeedQRZoomedInView,
-                view_args={
-                    "seed_num": self.seed_num,
-                    "seedqr_format": self.seedqr_format
-                }
+            selected_menu_num = self.run_screen(
+                ButtonListScreen,
+                title="Input Encryption Key",
+                button_data=button_data,
             )
+
+            if selected_menu_num == RET_CODE__BACK_BUTTON:
+                return Destination(BackStackView)
+
+            elif button_data[selected_menu_num] == TYPE:
+                ret_dict = self.run_screen(ScanTypeEncryptionKeyScreen)
+                if "is_back_button" in ret_dict:
+                    return Destination(BackStackView)
+                encryption_key=ret_dict["encryptionkey"]
+
+            elif button_data[selected_menu_num] == SCAN:
+                from seedsigner.gui.screens.scan_screens import ScanScreen
+                decoder = DecodeQR(is_encryptionkey=True)
+                self.run_screen(
+                    ScanScreen,
+                    instructions_text="Scan encryption key QR",
+                    decoder=decoder
+                )
+                self.controller.reset_screensaver_timeout()
+                if decoder.is_complete:
+                    encryption_key = decoder.get_encryption_key()
+                else:
+                    return Destination(BackStackView)
+
+            if len(encryption_key) > 200:
+                WarningScreen(
+                    title="Error",
+                    show_back_button=False,
+                    status_headline="Invalid Key",
+                    text="Key length is too long.",
+                ).display()
+                return Destination(BackStackView, skip_current_view=True)
+
+            PROCEED = "Proceed"
+            CANCEL = "Cancel"
+            button_data = [PROCEED, CANCEL]
+
+            selected_menu_num = self.run_screen(
+                ScanReviewEncryptionKeyScreen,
+                encryptionkey=encryption_key,
+                show_back_button=False,
+                button_data=button_data,
+            )
+
+            if button_data[selected_menu_num] == CANCEL:
+                return Destination(BackStackView)
+
+            if self.settings.get_value(SettingsConstants.SETTING__ENCRYPTION_MODE) == SettingsConstants.ENCRYPTION_MODE_CBC:
+                selected_menu_num = self.run_screen(
+                    ButtonListScreen,
+                    title="Addtional Entropy\nfor AES-CBC mode",
+                    button_data=["Input from Camera",CANCEL],
+                )
+
+                if selected_menu_num == RET_CODE__BACK_BUTTON:
+                    return Destination(BackStackView)
+                elif button_data[selected_menu_num] == CANCEL:
+                    return Destination(BackStackView)
+
+                from seedsigner.gui.screens.tools_screens import ToolsImageEntropyLivePreviewScreen, ToolsImageEntropyFinalImageScreen
+                self.controller.image_entropy_preview_frames = None
+                ret = ToolsImageEntropyLivePreviewScreen().display()
+                if ret == RET_CODE__BACK_BUTTON:
+                    return Destination(BackStackView)
+
+                # Take the final full-res image
+                from seedsigner.hardware.camera import Camera
+                camera = Camera.get_instance()
+                camera.start_single_frame_mode(resolution=(720, 480))
+                time.sleep(0.25)
+                entropy_image = camera.capture_frame()
+                camera.stop_single_frame_mode()
+
+                # A copy of the image for display. The actual image data is 720x480
+                display_version = autocontrast(
+                    entropy_image,
+                    cutoff=2
+                ).crop(
+                    (120, 0, 600, 480)
+                ).resize(
+                    (self.canvas_width, self.canvas_height), Image.BICUBIC
+                )
+                ret = ToolsImageEntropyFinalImageScreen(
+                    final_image=display_version
+                ).display()
+
+                if ret == RET_CODE__BACK_BUTTON:
+                    return Destination(BackStackView)
+
+                entropy_hash = hashlib.sha256(entropy_image.tobytes()).digest()
+                from seedsigner.models.encryption import AES_BLOCK_SIZE
+                i_vector = entropy_hash[:AES_BLOCK_SIZE]
+            else:
+                i_vector = None
+
+            CUSTOM_ID = "Input Custom ID"
+            DEFAULT = "Use fingerprint"
+            button_data = [CUSTOM_ID, DEFAULT]
+
+            selected_menu_num = self.run_screen(
+                ButtonListScreen,
+                title="Assign a custom ID?",
+                button_data=button_data,
+            )
+
+            if selected_menu_num == RET_CODE__BACK_BUTTON:
+                return Destination(BackStackView)
+
+            elif button_data[selected_menu_num] == CUSTOM_ID:
+                from seedsigner.gui.screens.seed_screens import SeedTypeMnemonicIDScreen
+                ret_dict = self.run_screen(SeedTypeMnemonicIDScreen)
+                if "is_back_button" in ret_dict:
+                    return Destination(BackStackView)
+                if button_data[selected_menu_num] == CANCEL:
+                    return Destination(BackStackView)
+                mnemonic_id = ret_dict["mnemonic_id"]
+            else:
+                mnemonic_id = self.seed.get_fingerprint(network=self.settings.get_value(SettingsConstants.SETTING__NETWORK))
+
+            button_data = [PROCEED, CANCEL]
+
+            selected_menu_num = self.run_screen(
+                SeedReviewMnemonicIDScreen,
+                mnemonic_id=mnemonic_id,
+                show_back_button=False,
+                button_data=button_data,
+            )
+
+            if button_data[selected_menu_num] == CANCEL:
+                return Destination(BackStackView)
+
+            from seedsigner.gui.screens.screen import LoadingScreenThread
+            loading_screen = LoadingScreenThread(text="Processing...")
+            loading_screen.start()
+
+            try:
+                from seedsigner.models.encryption import EncryptedQRCode
+                qr_data = EncryptedQRCode().create(
+                               key=encryption_key,
+                               mnemonic_id=mnemonic_id,
+                               mnemonic=self.seed.mnemonic_str,
+                               i_vector=i_vector
+                           )
+                if not qr_data:
+                    WarningScreen(
+                        title="Error",
+                        show_back_button=False,
+                        status_headline="Encryption failure",
+                        text="",
+                    ).display()
+                    return Destination(BackStackView, skip_current_view=True)
+
+            finally:
+                loading_screen.stop()
+
+            encoder_args = dict(data=qr_data)
+            e = GenericStaticQrEncoder(**encoder_args)
+
+            self.run_screen(
+                QRDisplayScreen,
+                qr_encoder=e
+            )
+
+            return Destination(
+                SeedOptionsView,
+                view_args={"seed_num": self.seed_num}
+            )
+
+        else:
+            encoder_args = dict(mnemonic=self.seed.mnemonic_list,
+                                wordlist_language_code=self.settings.get_value(SettingsConstants.SETTING__WORDLIST_LANGUAGE))
+            if self.seedqr_format == QRType.SEED__SEEDQR:
+                e = SeedQrEncoder(**encoder_args)
+            elif self.seedqr_format == QRType.SEED__COMPACTSEEDQR:
+                e = CompactSeedQrEncoder(**encoder_args)
+
+            data = e.next_part()
+
+            ret = seed_screens.SeedTranscribeSeedQRWholeQRScreen(
+                qr_data=data,
+                num_modules=self.num_modules,
+            ).display()
+
+            if ret == RET_CODE__BACK_BUTTON:
+                return Destination(BackStackView)
+
+            else:
+                return Destination(
+                    SeedTranscribeSeedQRZoomedInView,
+                    view_args={
+                        "seed_num": self.seed_num,
+                        "seedqr_format": self.seedqr_format
+                    }
+                )
 
 
 

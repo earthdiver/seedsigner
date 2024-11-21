@@ -12,6 +12,7 @@ class QRType:
     SEED__UR2 = "seed__ur2"
     SEED__MNEMONIC = "seed__mnemonic"
     SEED__FOUR_LETTER_MNEMONIC = "seed__four_letter_mnemonic"
+    SEED__ENCRYPTEDQR = "seed__encryptedqr"
 
     SETTINGS = "settings"
 
@@ -22,6 +23,8 @@ class QRType:
     BITCOIN_ADDRESS = "bitcoin_address"
 
     SIGN_MESSAGE = "sign_message"
+
+    ENCRYPTION_KEY = "encryption_key"
 
     WALLET__SPECTER = "wallet__specter"
     WALLET__UR = "wallet__ur"
