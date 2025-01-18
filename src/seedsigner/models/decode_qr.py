@@ -40,13 +40,16 @@ class DecodeQR:
         Used to process images or string data from animated qr codes.
     """
     def __init__(self, wordlist_language_code: str = SettingsConstants.WORDLIST_LANGUAGE__ENGLISH, is_passphrase: bool = False,
-                                                                                                   is_encryptionkey: bool = False):
+                                                                                                   is_encryptionkey: bool = False,
+                                                                                                   is_text: bool = False):
         self.wordlist_language_code = wordlist_language_code
         self.complete = False
         self.qr_type = None
         self.decoder = None
         self.is_passphrase = is_passphrase
         self.is_encryptionkey = is_encryptionkey
+        self.is_text = is_text
+
 
     def add_image(self, image):
         data = DecodeQR.extract_qr_data(image, is_binary=True)
@@ -64,6 +67,8 @@ class DecodeQR:
             qr_type = QRType.PASSPHRASE
         elif self.is_encryptionkey:
             qr_type = QRType.ENCRYPTION_KEY
+        elif self.is_text:
+            qr_type = QRType.TEXT
         else:
             qr_type = DecodeQR.detect_segment_type(data, wordlist_language_code=self.wordlist_language_code)
 
@@ -112,6 +117,9 @@ class DecodeQR:
             elif self.qr_type == QRType.ENCRYPTION_KEY:
                 self.decoder = EncryptionKeyQrDecoder()
 
+            elif self.qr_type == QRType.TEXT:
+                self.decoder = TextQrDecoder()
+
         elif self.qr_type != qr_type:
             raise Exception('QR Fragment Unexpected Type Change')
         
@@ -133,7 +141,10 @@ class DecodeQR:
             # Should always be bytes, but the test suite has some manual datasets that
             # are strings.
             # TODO: Convert the test suite rather than handle here?
-            qr_str = data.decode('utf-8')
+            try:
+                qr_str = data.decode('utf-8')
+            except UnicodeDecodeError:
+                return DecodeQRStatus.INVALID
         else:
             # it's already str data
             qr_str = data
@@ -228,6 +239,11 @@ class DecodeQR:
     def get_public_data(self):
         if self.is_encrypted_seedqr:
             return self.decoder.get_public_data()
+
+
+    def get_text(self):
+        if self.is_text:
+            return self.decoder.get_text()
 
 
     def get_qr_data(self) -> dict:
@@ -1254,4 +1270,28 @@ class EncryptedQrDecoder(BaseSingleFrameQrDecoder):
 
     def get_seed_phrase(self):
         return self.seed_phrase[:]
+
+
+
+class TextQrDecoder(BaseSingleFrameQrDecoder):
+    def __init__(self):
+        super().__init__()
+        self.text = None
+
+
+    def add(self, segment, qr_type=QRType.TEXT):
+        if qr_type == QRType.TEXT:
+            try:
+                self.text = segment
+                self.complete = True
+                self.collected_segments = 1
+                return DecodeQRStatus.COMPLETE
+            except Exception as e:
+                logger.exception(repr(e))
+
+        return DecodeQRStatus.INVALID
+
+
+    def get_text(self):
+        return self.text
 

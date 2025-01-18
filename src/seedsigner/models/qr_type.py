@@ -28,6 +28,8 @@ class QRType:
 
     ENCRYPTION_KEY = "encryption_key"
 
+    TEXT = "text"
+
     WALLET__SPECTER = "wallet__specter"
     WALLET__UR = "wallet__ur"
     WALLET__CONFIGFILE = "wallet__configfile"
