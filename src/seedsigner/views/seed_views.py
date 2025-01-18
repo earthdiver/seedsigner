@@ -1658,18 +1658,18 @@ class SeedTranscribeSeedQRWholeQRView(View):
             finally:
                 loading_screen.stop()
 
-            encoder_args = dict(data=qr_data)
-            e = GenericStaticQrEncoder(**encoder_args)
-
-            self.run_screen(
-                QRDisplayScreen,
-                qr_encoder=e
-            )
-
-            return Destination(
-                SeedOptionsView,
-                view_args={"seed_num": self.seed_num}
-            )
+            from seedsigner.helpers.qr import QR
+            num_modules = QR().qrsize(data=qr_data)
+            if num_modules <= 33:
+                return Destination(
+                    SeedEncryptedQRTranscribeModePromptView,
+                    view_args=dict(data=qr_data, num_modules=num_modules, seed_num=self.seed_num)
+                )
+            else:
+                return Destination(
+                    SeedEncryptedQRFullScreenModeView,
+                    view_args=dict(data=qr_data, seed_num=self.seed_num)
+                )
 
         else:
             encoder_args = dict(mnemonic=self.seed.mnemonic_list,
@@ -1818,6 +1818,108 @@ class SeedTranscribeSeedQRConfirmScanView(View):
                 ).display()
 
                 return Destination(BackStackView, skip_current_view=True)
+
+
+
+class SeedEncryptedQRTranscribeModePromptView(View):
+    def __init__(self, data: bytes, num_modules: int, seed_num: int):
+        super().__init__()
+        self.data = data
+        self.num_modules = num_modules
+        self.seed_num = seed_num
+
+
+    def run(self):
+        TRANSCRIBE = "Transcribe Mode"
+        FULLSCREEN = "FullScreen Mode"
+
+        button_data = [TRANSCRIBE, FULLSCREEN]
+
+        selected_menu_num = self.run_screen(
+            seed_screens.SeedEncryptedQRTranscribeModePromptScreen,
+            title="Transcribe Mode ?",
+            is_button_text_centered=False,
+            button_data=button_data
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        elif button_data[selected_menu_num] == TRANSCRIBE:
+            return Destination(
+                SeedEncryptedQRTranscribeModeView,
+                view_args=dict(data=self.data, num_modules=self.num_modules, seed_num=self.seed_num)
+            )
+
+        elif button_data[selected_menu_num] == FULLSCREEN:
+            return Destination(
+                SeedEncryptedQRFullScreenModeView,
+                view_args=dict(data=self.data, seed_num=self.seed_num)
+            )
+
+
+
+class SeedEncryptedQRTranscribeModeView(View):
+    def __init__(self, data: bytes, num_modules: int, seed_num: int):
+        super().__init__()
+        self.data = data
+        self.num_modules = num_modules
+        self.seed_num = seed_num
+
+
+    def run(self):
+        ret = seed_screens.SeedTranscribeEncryptedQRWholeQRScreen(
+            qr_data=self.data,
+            num_modules=self.num_modules
+        ).display()
+
+        if ret == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        else:
+            return Destination(
+                SeedTranscribeEncryptedQRZoomedInView,
+                view_args=dict(data=self.data, num_modules=self.num_modules, seed_num=self.seed_num)
+            )
+
+
+
+class SeedTranscribeEncryptedQRZoomedInView(View):
+    def __init__(self, data: bytes, num_modules: int, seed_num: int):
+        super().__init__()
+        self.data = data
+        self.num_modules = num_modules
+        self.seed_num = seed_num
+
+
+    def run(self):
+        seed_screens.SeedTranscribeEncryptedQRZoomedInScreen(
+            qr_data=self.data,
+            num_modules=self.num_modules
+        ).display()
+        return Destination(
+            SeedOptionsView,
+            view_args=dict(seed_num=self.seed_num),
+            clear_history=True
+        )
+
+
+
+class SeedEncryptedQRFullScreenModeView(View):
+    def __init__(self, data: bytes, seed_num: int):
+        super().__init__()
+        self.data = data
+        self.seed_num = seed_num
+
+    def run(self):
+        encoder_args = dict(data=self.data)
+        e = GenericStaticQrEncoder(**encoder_args)
+        QRDisplayScreen(qr_encoder=e).display()
+        return Destination(
+            SeedOptionsView,
+            view_args=dict(seed_num=self.seed_num),
+            clear_history=True
+        )
 
 
 
