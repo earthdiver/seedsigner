@@ -1522,6 +1522,7 @@ class SeedTranscribeSeedQRWholeQRView(View):
                     decoder=decoder
                 )
                 self.controller.reset_screensaver_timeout()
+                time.sleep(0.1)
                 if decoder.is_complete:
                     encryption_key = decoder.get_encryption_key()
                 else:
