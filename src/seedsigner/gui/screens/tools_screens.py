@@ -831,8 +831,6 @@ class ToolsTextQRReviewTextScreen(ButtonListScreen):
 
         super().__post_init__()
 
-        import math
-
         if " " in self.textToEncode:
             self.textToEncode = self.textToEncode.replace(" ", "\u2589")
         available_height = self.buttons[0].screen_y - self.top_nav.height - GUIConstants.COMPONENT_PADDING
