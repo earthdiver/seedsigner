@@ -964,6 +964,7 @@ class ToolsTranscribeTextQRConfirmScanView(View):
         ).display()
 
         self.controller.reset_screensaver_timeout()
+        time.sleep(0.1)
 
         if decoder.is_complete:
             if decoder.get_text() != self.text:
@@ -1008,6 +1009,7 @@ class ToolsTextQRScanQRCodeView(View):
         ScanScreen(decoder=decoder, instructions_text="Scan Text QR Code").display()
 
         self.controller.reset_screensaver_timeout()
+        time.sleep(0.1)
 
         if decoder.is_complete:
             return Destination(
