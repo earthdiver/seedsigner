@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 
 from embit.descriptor import Descriptor
 
@@ -53,6 +54,7 @@ class ScanView(View):
         # A long scan might have exceeded the screensaver timeout; ensure screensaver
         # doesn't immediately engage when we leave here.
         self.controller.reset_screensaver_timeout()
+        time.sleep(0.1)
 
         # Handle the results
         if self.decoder.is_complete:

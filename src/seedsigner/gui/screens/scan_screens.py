@@ -296,8 +296,6 @@ class ScanEncryptedQRScreen(ButtonListScreen):
         self.is_bottom_list = True
         super().__post_init__()
 
-        time.sleep(0.1)
-
         self.components.append(TextArea(
             text=self.public_data,
             screen_y=self.top_nav.height,
@@ -699,8 +697,6 @@ class ScanReviewEncryptionKeyScreen(ButtonListScreen):
         self.is_bottom_list = True
 
         super().__post_init__()
-
-        time.sleep(0.1)
 
         if self.encryptionkey != self.encryptionkey.strip() or "  " in self.encryptionkey:
             self.encryptionkey = self.encryptionkey.replace(" ", "\u2589")
