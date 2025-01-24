@@ -1597,8 +1597,8 @@ class SeedSignMessageConfirmAddressScreen(ButtonListScreen):
 
 
 @dataclass
-class SeedTypeMnemonicIDScreen(BaseTopNavScreen):
-    title: str = "Mnemonic ID"
+class SeedEncryptedQRCustomIDScreen(BaseTopNavScreen):
+    title: str = "Custom ID"
     mnemonic_id: str = ""
 
     KEYBOARD__LOWERCASE_BUTTON_TEXT = "abc"
@@ -1979,12 +1979,12 @@ class SeedTypeMnemonicIDScreen(BaseTopNavScreen):
 
 
 @dataclass
-class SeedReviewMnemonicIDScreen(ButtonListScreen):
+class SeedEncryptedQRReviewMnemonicIDScreen(ButtonListScreen):
     mnemonic_id: str = None
 
     def __post_init__(self):
         # Customize defaults
-        self.title = "Review Mnemonic ID"
+        self.title = "Review\nMnemonic ID"
         self.is_bottom_list = True
 
         super().__post_init__()

@@ -4,7 +4,7 @@ import time
 
 from embit.descriptor import Descriptor
 
-from seedsigner.gui.screens.screen import RET_CODE__BACK_BUTTON, ButtonListScreen, WarningScreen
+from seedsigner.gui.screens.screen import RET_CODE__BACK_BUTTON, ButtonListScreen, WarningScreen, DireWarningScreen
 from seedsigner.gui.screens.scan_screens import ScanEncryptedQRScreen, ScanTypeEncryptionKeyScreen, ScanReviewEncryptionKeyScreen
 from seedsigner.models.decode_qr import DecodeQR, DecodeQRStatus
 from seedsigner.models.seed import Seed
@@ -156,14 +156,6 @@ class ScanView(View):
                     )
                 )
             
-            elif self.decoder.is_encryptionkey:
-                encryption_key = self.decoder.get_encryption_key()
-                return Destination(
-                    ScanDecryptEncryptedQRView, 
-                    view_args=dict(encryption_key=encryption_key),
-                    skip_current_view=True
-                )
-
             elif self.decoder.is_encrypted_seedqr:
                 DECRYPT = "Decrypt"
                 CANCEL = "Cancel"
@@ -177,33 +169,12 @@ class ScanView(View):
                     button_data=button_data,
                 )
 
-                if button_data[selected_menu_num] == CANCEL:
+                if button_data[selected_menu_num] == DECRYPT:
+                    return Destination(ScanEncryptedQREncryptionKeyView)
+
+                elif button_data[selected_menu_num] == CANCEL:
                     self.controller.storage2.clear_encryptedqr()
-                    return Destination(BackStackView, skip_current_view=True)
-
-                TYPE = "Type encryption key"
-                SCAN = "Scan encryption key"
-                button_data = [TYPE, SCAN]
-
-                selected_menu_num = self.run_screen(
-                    ButtonListScreen,
-                    title="Input Encryption Key",
-                    show_back_button=False,
-                    button_data=button_data,
-                )
-
-                if button_data[selected_menu_num] == TYPE:
-                    ret_dict = self.run_screen(ScanTypeEncryptionKeyScreen)
-                    if "is_back_button" in ret_dict:
-                        self.controller.storage2.clear_encryptedqr()
-                        return Destination(BackStackView, skip_current_view=True)
-                    return Destination(
-                        ScanDecryptEncryptedQRView, 
-                        view_args=dict(encryption_key=ret_dict["encryptionkey"]),
-                        skip_current_view=True
-                    )
-                elif button_data[selected_menu_num] == SCAN:
-                    return Destination(ScanEncryptionKeyView, skip_current_view=True)
+                    return Destination(MainMenuView)
 
             else:
                 return Destination(NotYetImplementedView)
@@ -267,13 +238,127 @@ class ScanAddressView(ScanView):
 
 
 
-class ScanEncryptionKeyView(ScanView):
-    instructions_text = "Scan encryption key QR"
+class ScanEncryptedQREncryptionKeyView(View):
+    def run(self):
+        TYPE = "Type encryption key"
+        SCAN = "Scan encryption key"
+        CANCEL = "Cancel"
+        button_data = [TYPE, SCAN, CANCEL]
+
+        selected_menu_num = self.run_screen(
+            ButtonListScreen,
+            title="Input Encryption Key",
+            show_back_button=False,
+            button_data=button_data,
+        )
+
+        if button_data[selected_menu_num] == TYPE:
+            return Destination(ScanEncryptedQRTypeEncryptionKeyView)
+
+        elif button_data[selected_menu_num] == SCAN:
+            return Destination(ScanEncryptedQRScanEncryptionKeyView)
+
+        elif button_data[selected_menu_num] == CANCEL:
+            self.controller.storage2.clear_encryptedqr()
+            return Destination(MainMenuView)
 
 
-    def __init__(self):
-        super(ScanView, self).__init__()
-        self.decoder: DecodeQR = DecodeQR(is_encryptionkey=True)
+
+class ScanEncryptedQRTypeEncryptionKeyView(View):
+    def __init__(self, encryption_key: str = ""):
+        super().__init__()
+        self.encryption_key = encryption_key
+
+
+    def run(self):
+        from seedsigner.gui.screens.scan_screens import ScanTypeEncryptionKeyScreen
+        ret_dict = self.run_screen(ScanTypeEncryptionKeyScreen, encryptionkey=self.encryption_key)
+
+        if "is_back_button" in ret_dict:
+            return Destination(BackStackView)
+
+        else:
+            return Destination(
+                ScanEncryptedQRReviewEncryptionKeyView,
+                view_args=dict(encryption_key=ret_dict["encryptionkey"]),
+                skip_current_view=True
+            )
+
+
+
+class ScanEncryptedQRScanEncryptionKeyView(View):
+    def run(self):
+        from seedsigner.gui.screens.scan_screens import ScanScreen
+        decoder = DecodeQR(is_encryptionkey=True)
+        self.run_screen(
+            ScanScreen,
+            instructions_text="Scan encryption key QR",
+            decoder=decoder
+        )
+        self.controller.reset_screensaver_timeout()
+        time.sleep(0.1)
+        if decoder.is_complete:
+            encryption_key = decoder.get_encryption_key()
+            return Destination(
+                ScanEncryptedQRReviewEncryptionKeyView,
+                view_args=dict(encryption_key=encryption_key),
+                skip_current_view=True
+            )
+        elif decoder.is_nonUTF8:
+            DireWarningScreen(
+                title="Error!",
+                show_back_button=False,
+                status_headline="Invalid Text QR Code",
+                text=f"Non UTF-8 data detected."
+            ).display()
+            return Destination(BackStackView)
+        else:
+            return Destination(BackStackView)
+
+
+
+class ScanEncryptedQRReviewEncryptionKeyView(View):
+    def __init__(self, encryption_key: str):
+        super().__init__()
+        self.encryption_key = encryption_key
+
+    def run(self):
+        if len(self.encryption_key) > 200:
+            WarningScreen(
+                title="Error",
+                show_back_button=False,
+                status_headline="Invalid Key",
+                text="Key length is too long.",
+            ).display()
+            return Destination(BackStackView)
+
+        PROCEED = "Proceed"
+        EDIT = "Edit"
+        button_data = [PROCEED, EDIT]
+
+        from seedsigner.gui.screens.scan_screens import ScanReviewEncryptionKeyScreen
+
+        selected_menu_num = self.run_screen(
+            ScanReviewEncryptionKeyScreen,
+            encryptionkey=self.encryption_key,
+            button_data=button_data,
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        elif button_data[selected_menu_num] == PROCEED:
+            return Destination(
+                ScanDecryptEncryptedQRView,
+                view_args=dict(encryption_key=self.encryption_key),
+            )
+
+        elif button_data[selected_menu_num] == EDIT:
+            return Destination(
+                ScanEncryptedQRTypeEncryptionKeyView,
+                view_args=dict(encryption_key=self.encryption_key),
+                skip_current_view=True
+            )
 
 
 
@@ -281,30 +366,14 @@ class ScanDecryptEncryptedQRView(View):
     """
         Decrypt an encrypted QR
     """
-    def __init__(self, encrypted_data: bytes = None, encryption_key: str = None):
+    def __init__(self, encryption_key: str, encrypted_data: bytes = None):
         super().__init__()
-        self.encrypted_data: bytes = encrypted_data
         self.encryption_key: str = encryption_key
+        self.encrypted_data: bytes = encrypted_data
         self.wordlist_language_code = self.settings.get_value(SettingsConstants.SETTING__WORDLIST_LANGUAGE)
 
 
     def run(self):
-        PROCEED = "Proceed"
-        CANCEL = "Cancel"
-
-        button_data = [PROCEED, CANCEL]
-
-        selected_menu_num = self.run_screen(
-            ScanReviewEncryptionKeyScreen,
-            encryptionkey=self.encryption_key,
-            show_back_button=False,
-            button_data=button_data,
-        )
-
-        if button_data[selected_menu_num] == CANCEL:
-            self.controller.storage2.clear_encryptedqr()
-            return Destination(BackStackView, skip_current_view=True)
-
         from seedsigner.gui.screens.screen import LoadingScreenThread
         self.loading_screen = LoadingScreenThread(text="Processing...")
         self.loading_screen.start()
@@ -316,10 +385,18 @@ class ScanDecryptEncryptedQRView(View):
             status = decoder.add(self.encrypted_data, qr_type=QRType.SEED__ENCRYPTEDQR, encryption_key=self.encryption_key)
         finally:
             self.loading_screen.stop()
-            self.controller.storage2.clear_encryptedqr()
 
         if status == DecodeQRStatus.COMPLETE:
-            seed_mnemonic = decoder.get_seed_phrase()
+            self.controller.storage2.clear_encryptedqr()
+            self.controller.storage.set_pending_seed(
+                Seed(mnemonic=decoder.get_seed_phrase(), wordlist_language_code=self.wordlist_language_code)
+            )
+            if self.settings.get_value(SettingsConstants.SETTING__PASSPHRASE) == SettingsConstants.OPTION__REQUIRED:
+                from seedsigner.views.seed_views import SeedAddPassphraseView
+                return Destination(SeedAddPassphraseView, skip_current_view=True)
+            else:
+                from .seed_views import SeedFinalizeView
+                return Destination(SeedFinalizeView, skip_current_view=True)
 
         elif status == DecodeQRStatus.WRONG_KEY:
             WarningScreen(
@@ -328,7 +405,7 @@ class ScanDecryptEncryptedQRView(View):
                 status_headline="decryption failure",
                 text="Review your encryption key.",
             ).display()
-            return Destination(BackStackView, skip_current_view=True)
+            return Destination(BackStackView)
 
         else:
             WarningScreen(
@@ -337,15 +414,5 @@ class ScanDecryptEncryptedQRView(View):
                 status_headline="decryption failure",
                 text="Unknown error",
             ).display()
-            return Destination(BackStackView, skip_current_view=True)
-
-        self.controller.storage.set_pending_seed(
-            Seed(mnemonic=seed_mnemonic, wordlist_language_code=self.wordlist_language_code)
-        )
-        if self.settings.get_value(SettingsConstants.SETTING__PASSPHRASE) == SettingsConstants.OPTION__REQUIRED:
-            from seedsigner.views.seed_views import SeedAddPassphraseView
-            return Destination(SeedAddPassphraseView, skip_current_view=True)
-        else:
-            from .seed_views import SeedFinalizeView
-            return Destination(SeedFinalizeView, skip_current_view=True)
+            return Destination(BackStackView)
 
