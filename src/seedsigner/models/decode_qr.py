@@ -49,6 +49,7 @@ class DecodeQR:
         self.is_passphrase = is_passphrase
         self.is_encryptionkey = is_encryptionkey
         self.is_text = is_text
+        self.is_nonUTF8 = False
 
 
     def add_image(self, image):
@@ -144,6 +145,7 @@ class DecodeQR:
             try:
                 qr_str = data.decode('utf-8')
             except UnicodeDecodeError:
+                self.is_nonUTF8 = True
                 return DecodeQRStatus.INVALID
         else:
             # it's already str data
