@@ -790,10 +790,10 @@ class ToolsTextQRReviewTextView(View):
 
 
     def run(self):
-        EDIT = "Edit text"
         ENCODE = "Generate QR Code"
+        EDIT = "Edit text"
 
-        button_data = [EDIT, ENCODE]
+        button_data = [ENCODE, EDIT]
 
         selected_menu_num = self.run_screen(
             ToolsTextQRReviewTextScreen,
@@ -805,13 +805,7 @@ class ToolsTextQRReviewTextView(View):
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
 
-        if button_data[selected_menu_num] == EDIT:
-            return Destination(
-                ToolsTextQRTextEntryView,
-                view_args=dict(textToEncode=self.text)
-            )
-
-        elif button_data[selected_menu_num] == ENCODE:
+        if button_data[selected_menu_num] == ENCODE:
             from seedsigner.helpers.qr import QR
             num_modules = QR().qrsize(data=self.text)
             if num_modules <= 33:
@@ -824,6 +818,13 @@ class ToolsTextQRReviewTextView(View):
                     ToolsTextQRFullScreenModeView,
                     view_args=dict(text=self.text)
                 )
+
+        elif button_data[selected_menu_num] == EDIT:
+            return Destination(
+                ToolsTextQRTextEntryView,
+                view_args=dict(textToEncode=self.text),
+                skip_current_view=True
+            )
 
 
 
@@ -1018,13 +1019,16 @@ class ToolsTextQRScanQRCodeView(View):
                 skip_current_view=True
             )
 
-        else:
+        elif decoder.is_nonUTF8:
             DireWarningScreen(
                 title="Error!",
                 show_back_button=False,
                 status_headline="Invalid Text QR Code",
                 text=f"Non UTF-8 data detected."
             ).display()
+            return Destination(BackStackView)
+
+        else:
             return Destination(BackStackView)
 
 
