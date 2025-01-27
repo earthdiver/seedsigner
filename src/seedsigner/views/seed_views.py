@@ -315,7 +315,6 @@ class SeedFinalizeView(View):
 
 
     def run(self):
-        from seedsigner.views.scan_views import ScanPassphraseView
         button_data = [self.FINALIZE]
         if self.settings.get_value(SettingsConstants.SETTING__PASSPHRASE) != SettingsConstants.OPTION__DISABLED:
             button_data.append(self.TYPE_PASSPHRASE)
@@ -335,7 +334,7 @@ class SeedFinalizeView(View):
             return Destination(SeedAddPassphraseView)
 
         elif button_data[selected_menu_num] == self.SCAN_PASSPHRASE:
-            return Destination(ScanPassphraseView)
+            return Destination(SeedScanPassphraseView)
 
 
 
@@ -393,7 +392,35 @@ class SeedAddPassphraseExitDialogView(View):
         elif button_data[selected_menu_num] == self.DISCARD:
             self.seed.set_passphrase("")
             return Destination(SeedFinalizeView)
-        
+
+
+
+class SeedScanPassphraseView(View):
+    def run(self):
+        from seedsigner.gui.screens.scan_screens import ScanScreen
+        decoder = DecodeQR(is_passphrase=True)
+        self.run_screen(
+            ScanScreen,
+            instructions_text="Scan Passphrase",
+            decoder=decoder
+        )
+        self.controller.reset_screensaver_timeout()
+        time.sleep(0.1)
+        if decoder.is_complete:
+            passphrase = decoder.get_passphrase()
+            self.controller.storage.get_pending_seed().set_passphrase(passphrase)
+            return Destination(SeedReviewPassphraseView)
+        elif decoder.is_nonUTF8:
+            DireWarningScreen(
+                title="Error!",
+                show_back_button=False,
+                status_headline="Invalid Text QR Code",
+                text=f"Non UTF-8 data detected."
+            ).display()
+            return Destination(BackStackView)
+        else:
+            return Destination(BackStackView)
+
 
 
 class SeedReviewPassphraseView(View):
@@ -426,11 +453,14 @@ class SeedReviewPassphraseView(View):
             fingerprint_without=fingerprint_without,
             fingerprint_with=fingerprint_with,
             passphrase=self.seed.passphrase_display,
-            button_data=button_data,
-            show_back_button=False,
+            button_data=button_data
         )
 
-        if button_data[selected_menu_num] == self.EDIT:
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            self.seed.set_passphrase("")
+            return Destination(SeedFinalizeView)
+
+        elif button_data[selected_menu_num] == self.EDIT:
             return Destination(SeedAddPassphraseView)
         
         elif button_data[selected_menu_num] == self.DONE:

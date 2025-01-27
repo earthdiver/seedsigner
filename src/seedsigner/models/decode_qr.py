@@ -44,6 +44,7 @@ class DecodeQR:
         self.qr_type = None
         self.decoder = None
         self.is_passphrase = is_passphrase
+        self.is_nonUTF8 = False
 
 
     def add_image(self, image):
@@ -121,7 +122,11 @@ class DecodeQR:
             # Should always be bytes, but the test suite has some manual datasets that
             # are strings.
             # TODO: Convert the test suite rather than handle here?
-            qr_str = data.decode('utf-8')
+            try:
+                qr_str = data.decode('utf-8')
+            except UnicodeDecodeError:
+                self.is_nonUTF8 = True
+                return DecodeQRStatus.INVALID
         else:
             # it's already str data
             qr_str = data
