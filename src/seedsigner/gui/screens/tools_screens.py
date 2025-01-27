@@ -947,7 +947,7 @@ class ToolsTranscribeTextQRWholeQRScreen(WarningEdgesMixin, ButtonListScreen):
     num_modules: int = None
 
     def __post_init__(self):
-        self.title = "Transcribe TextQR"
+        self.title = "Transcribe Text QR"
         self.button_data = [f"Begin {self.num_modules}x{self.num_modules}"]
         self.is_bottom_list = True
         self.status_color = GUIConstants.DIRE_WARNING_COLOR
