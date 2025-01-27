@@ -1646,8 +1646,8 @@ class SeedSignMessageConfirmAddressScreen(ButtonListScreen):
 
 
 @dataclass
-class SeedEncryptedQRCustomIDScreen(BaseTopNavScreen):
-    title: str = "Custom ID"
+class SeedEncryptedQRMnemonicIDScreen(BaseTopNavScreen):
+    title: str = "Mnemonic ID"
     mnemonic_id: str = ""
 
     KEYBOARD__LOWERCASE_BUTTON_TEXT = "abc"
@@ -1866,10 +1866,11 @@ class SeedEncryptedQRCustomIDScreen(BaseTopNavScreen):
             if input == HardwareButtonsConstants.KEY3:
                 # Save!
                 # First light up key3
-                self.hw_button3.is_selected = True
-                self.hw_button3.render()
-                self.renderer.show_image()
-                return dict(mnemonic_id=self.mnemonic_id)
+                if len(self.mnemonic_id) > 0:
+                    self.hw_button3.is_selected = True
+                    self.hw_button3.render()
+                    self.renderer.show_image()
+                    return dict(mnemonic_id=self.mnemonic_id)
 
             elif input == HardwareButtonsConstants.KEY_PRESS and self.top_nav.is_selected:
                 # Back button clicked
@@ -2105,7 +2106,7 @@ class SeedTranscribeEncryptedQRWholeQRScreen(WarningEdgesMixin, ButtonListScreen
     num_modules: int = None
 
     def __post_init__(self):
-        self.title = "Transcribe EncryptedQR"
+        self.title = "Transcribe\nEncrypted QR"
         self.button_data = [f"Begin {self.num_modules}x{self.num_modules}"]
         self.is_bottom_list = True
         self.status_color = GUIConstants.DIRE_WARNING_COLOR
