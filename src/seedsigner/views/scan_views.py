@@ -273,16 +273,57 @@ class ScanEncryptedQRTypeEncryptionKeyView(View):
     def run(self):
         from seedsigner.gui.screens.scan_screens import ScanTypeEncryptionKeyScreen
         ret_dict = self.run_screen(ScanTypeEncryptionKeyScreen, encryptionkey=self.encryption_key)
+        encryption_key=ret_dict["encryptionkey"]
 
         if "is_back_button" in ret_dict:
-            return Destination(BackStackView)
+            if len(encryption_key) > 0:
+                return Destination(
+                    ScanEncryptedQRTypeEncryptionKeyExitDialogView,
+                    view_args=dict(encryption_key=encryption_key),
+                    skip_current_view=True
+                )
+            else:
+                return Destination(BackStackView)
 
         else:
             return Destination(
                 ScanEncryptedQRReviewEncryptionKeyView,
-                view_args=dict(encryption_key=ret_dict["encryptionkey"]),
+                view_args=dict(encryption_key=encryption_key),
                 skip_current_view=True
             )
+
+
+
+class ScanEncryptedQRTypeEncryptionKeyExitDialogView(View):
+    EDIT = "Edit encryption key"
+    DISCARD = ("Discard encryption key", None, None, "red")
+
+    def __init__(self, encryption_key: str):
+        super().__init__()
+        self.encryption_key = encryption_key
+
+
+    def run(self):
+        button_data = [self.EDIT, self.DISCARD]
+        
+        selected_menu_num = self.run_screen(
+            WarningScreen,
+            title="Discard encryption key?",
+            status_headline=None,
+            text=f"Your current key entry will be erased",
+            show_back_button=False,
+            button_data=button_data
+        )
+
+        if button_data[selected_menu_num] == self.EDIT:
+            return Destination(
+                ScanEncryptedQRTypeEncryptionKeyView,
+                view_args=dict(encryption_key=self.encryption_key),
+                skip_current_view=True
+            )
+
+        elif button_data[selected_menu_num] == self.DISCARD:
+            return Destination(BackStackView)
 
 
 
@@ -292,7 +333,7 @@ class ScanEncryptedQRScanEncryptionKeyView(View):
         decoder = DecodeQR(is_encryptionkey=True)
         self.run_screen(
             ScanScreen,
-            instructions_text="Scan encryption key QR",
+            instructions_text="Scan encryption key",
             decoder=decoder
         )
         self.controller.reset_screensaver_timeout()
