@@ -10,7 +10,7 @@ from PIL.ImageOps import autocontrast
 
 from seedsigner.controller import Controller
 from seedsigner.gui.components import FontAwesomeIconConstants, GUIConstants, SeedSignerIconConstants
-from seedsigner.gui.screens import (RET_CODE__BACK_BUTTON, ButtonListScreen, DireWarningScreen, LargeIconStatusScreen)
+from seedsigner.gui.screens import (RET_CODE__BACK_BUTTON, ButtonListScreen, DireWarningScreen, LargeIconStatusScreen, WarningScreen)
 from seedsigner.gui.screens.scan_screens import ScanScreen
 from seedsigner.gui.screens.tools_screens import (ToolsCalcFinalWordDoneScreen, ToolsCalcFinalWordFinalizePromptScreen,
     ToolsCalcFinalWordScreen, ToolsCoinFlipEntryScreen, ToolsDiceEntropyEntryScreen, ToolsImageEntropyFinalImageScreen,
@@ -730,8 +730,8 @@ class ToolsAddressExplorerAddressView(View):
 ****************************************************************************"""
 class ToolsTextQRView(View):
     def run(self):
-        ENCODE = "Encode Text"
-        DECODE = "Decode QR Code"
+        ENCODE = "Encode text"
+        DECODE = "Decode QR code"
 
         button_data = [ENCODE, DECODE]
 
@@ -773,13 +773,54 @@ class ToolsTextQRTextEntryView(View):
             self.textToEncode = ret_dict["textToEncode"]
 
         if "is_back_button" in ret_dict:
-            return Destination(BackStackView)
+            if len(self.textToEncode) > 0:
+                return Destination(
+                    ToolsTextQRTextEntryExitDialogView,
+                    view_args=dict(text=self.textToEncode),
+                    skip_current_view=True
+                )
+            else:
+                return Destination(BackStackView)
 
-        return Destination(
-            ToolsTextQRReviewTextView,
-            view_args=dict(text=self.textToEncode),
-            skip_current_view=True
+        else:
+            return Destination(
+                ToolsTextQRReviewTextView,
+                view_args=dict(text=self.textToEncode),
+                skip_current_view=True
+            )
+
+
+
+class ToolsTextQRTextEntryExitDialogView(View):
+    EDIT = "Edit text"
+    DISCARD = ("Discard text", None, None, "red")
+
+    def __init__(self, text: str):
+        super().__init__()
+        self.text = text
+
+
+    def run(self):
+        button_data = [self.EDIT, self.DISCARD]
+        
+        selected_menu_num = self.run_screen(
+            WarningScreen,
+            title="Discard text?",
+            status_headline=None,
+            text=f"Your current text entry will be erased",
+            show_back_button=False,
+            button_data=button_data
         )
+
+        if button_data[selected_menu_num] == self.EDIT:
+            return Destination(
+                ToolsTextQRTextEntryView,
+                view_args=dict(textToEncode=self.text),
+                skip_current_view=True
+            )
+
+        elif button_data[selected_menu_num] == self.DISCARD:
+            return Destination(BackStackView)
 
 
 
@@ -790,7 +831,7 @@ class ToolsTextQRReviewTextView(View):
 
 
     def run(self):
-        ENCODE = "Generate QR Code"
+        ENCODE = "Generate QR code"
         EDIT = "Edit text"
 
         button_data = [ENCODE, EDIT]
@@ -836,8 +877,8 @@ class ToolsTextQRTranscribeModePromptView(View):
 
 
     def run(self):
-        TRANSCRIBE = "Transcribe Mode"
-        FULLSCREEN = "FullScreen Mode"
+        TRANSCRIBE = "Transcribe mode"
+        FULLSCREEN = "FullScreen mode"
 
         button_data = [TRANSCRIBE, FULLSCREEN]
 
@@ -931,7 +972,7 @@ class ToolsTranscribeTextQRConfirmQRPromptView(View):
 
 
     def run(self):
-        SCAN = "Confirm Text QR Code"
+        SCAN = "Confirm text QR code"
         DONE = "Done"
         button_data = [SCAN, DONE]
 
@@ -960,7 +1001,7 @@ class ToolsTranscribeTextQRConfirmScanView(View):
     def run(self):
         decoder = DecodeQR(is_text=True)
         ScanScreen(
-            instructions_text="Scan Text QR Code",
+            instructions_text="Scan text QR code",
             decoder=decoder
         ).display()
 
@@ -974,10 +1015,10 @@ class ToolsTranscribeTextQRConfirmScanView(View):
                     status_headline="Error!",
                     text="Your transcribed text QR code does not match your original text!",
                     show_back_button=False,
-                    button_data=["Review Text QR Code"],
+                    button_data=["Review text QR code"],
                 ).display()
 
-                return Destination(BackStackView, skip_current_view=True)
+                return Destination(BackStackView)
             
             else:
                 LargeIconStatusScreen(
@@ -996,10 +1037,10 @@ class ToolsTranscribeTextQRConfirmScanView(View):
                 status_headline="Error!",
                 text="Your transcribed text QR code could not be read!",
                 show_back_button=False,
-                button_data=["Review Text QR Code"],
+                button_data=["Review text QR code"],
             ).display()
 
-            return Destination(BackStackView, skip_current_view=True)
+            return Destination(BackStackView)
 
 
 
@@ -1007,7 +1048,7 @@ class ToolsTextQRScanQRCodeView(View):
     def run(self):
 
         decoder = DecodeQR(is_text=True)
-        ScanScreen(decoder=decoder, instructions_text="Scan Text QR Code").display()
+        ScanScreen(decoder=decoder, instructions_text="Scan text QR code").display()
 
         self.controller.reset_screensaver_timeout()
         time.sleep(0.1)
@@ -1040,7 +1081,7 @@ class ToolsTextQRReviewTextView2(View):
 
 
     def run(self):
-        EDIT = "Edit & Generate QR Code"
+        EDIT = "Edit & Generate QR code"
         DONE = "Done"
 
         button_data = [EDIT, DONE]
@@ -1056,7 +1097,7 @@ class ToolsTextQRReviewTextView2(View):
         if button_data[selected_menu_num] == EDIT:
             return Destination(
                 ToolsTextQRTextEntryView,
-                view_args=dict(textToEncode=self.text),
+                view_args=dict(textToEncode=self.text)
             )
 
         elif button_data[selected_menu_num] == DONE:
